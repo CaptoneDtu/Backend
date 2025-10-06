@@ -1,0 +1,25 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "\"# Backend\"",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon \"src/index.js\"",
+    "prepare": "husky install",
+    "lint": "eslint . --ext .js",
+    "format": "prettier --write .",
+    "seed": "node src/utils/seed.js",
+    "seed-data": "node src/utils/seed2.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.19.0",
+    "morgan": "^1.10.1",
+    "nodemon": "^3.1.10"
+  }
+}
