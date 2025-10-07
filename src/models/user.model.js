@@ -20,7 +20,7 @@ const userSchema = new Schema(
     password: {
       type: String, 
       required: true,
-      select: false // tránh trả về trong query mặc định
+    
     },
     status: {
       type: String,
@@ -40,48 +40,17 @@ const userSchema = new Schema(
       type: String,
       default: ''
     },
-    roles: {
+    role: {
       type: String,
       // enum: ['student', 'teacher', 'admin'],
       default: 'student'
-      // required: true
+      
     },
     phone: {
       type: String,
       default: ''
     },
 
-    // 👨‍🏫 Dành riêng cho giáo viên
-    teacher_profile: {
-      bio: { type: String, default: '' },
-      experience_years: { type: Number, default: 0 },
-      subjects: [{ type: String }],
-      certificates: [{ type: String }]
-    },
-
-    // 🎓 Dành cho học sinh
-    student_profile: {
-      enrolled_courses: [{ type: Types.ObjectId, ref: 'Course' }],
-      learning_level: { type: String, default: 'beginner' },
-      progress: { type: Number, default: 0 }
-    },
-
-    // 👮‍♂️ Dành cho admin
-    admin_profile: {
-      permissions: [{ type: String }],
-      last_login_ip: { type: String },
-      managed_users: [{ type: Types.ObjectId, ref: 'User' }]
-    },
-
-    // 📍 Tracking
-    last_login_at: { type: Date },
-    last_active_at: { type: Date },
-
-    // 🔒 Bảo mật
-    reset_password_token: { type: String },
-    reset_password_expires: { type: Date },
-    two_factor_enabled: { type: Boolean, default: false },
-    two_factor_secret: { type: String }
   },
   {
     timestamps: true,

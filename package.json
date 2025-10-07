@@ -4,18 +4,15 @@
   "description": "\"# Backend\"",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon \"src/index.js\"",
-    "prepare": "husky install",
-    "lint": "eslint . --ext .js",
-    "format": "prettier --write .",
-    "seed": "node src/utils/seed.js",
-    "seed-data": "node src/utils/seed2.js"
+    "start": "nodemon \"src/server.js\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.0",
