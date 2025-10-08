@@ -8,11 +8,13 @@ const auth = (roles = []) => {
 
             const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
             req.user = decoded;
-            if (roles.length && !roles.some(r => decoded.roles.includes(r))) {
+            console.log("Decoded user:", decoded);
+            if (roles.length && !roles.includes(decoded.role)) {
                 return res.status(403).json({ message: "Forbidden: insufficient rights" });
             }
             next();
         } catch (err) {
+            console.error(err);
             return res.status(401).json({ message: "Invalid/expired access token" });
         }
     };

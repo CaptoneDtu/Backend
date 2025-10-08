@@ -6,6 +6,9 @@ const { signAccessToken, signRefreshToken, verifyRefreshToken } = require("../ut
 
 const hashToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
 
+
+
+
 exports.register = async (req, res) => {
     try {
         const { email, phone, password, name } = req.body;
@@ -41,7 +44,7 @@ exports.login = async (req, res) => {
         const match = await bcrypt.compare(password, user.password);
         if (!match) return res.status(400).json({ message: "Invalid credentials" });
 
-        const payload = { id: user._id, email: user.email, phone: user.phone, roles: user.roles };
+        const payload = { id: user._id, email: user.email, phone: user.phone, role: user.role };
         const accessToken = signAccessToken(payload);
         const refreshToken = signRefreshToken({ sid: crypto.randomUUID(), ...payload });
 
@@ -57,7 +60,7 @@ exports.login = async (req, res) => {
         res.json({
             access_token: accessToken,
             refresh_token: refreshToken,
-            user: { id: user._id, email: user.email, phone: user.phone, roles: user.roles }
+            user: { id: user._id, email: user.email, phone: user.phone, role: user.role }
         });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -126,4 +129,32 @@ exports.getMe = async (req, res) => {
 
 exports.adminOnly = async (req, res) => {
     res.json({ message: "Welcome Admin!", user: req.user });
+};
+
+exports.promoteToTeacher = async (req, res) => {
+    try {
+        const { userId } = req.query;
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ message: "User not found" });
+        user.role = "teacher";
+        await user.save();
+        res.json({ message: "User promoted to teacher", user: { id: user._id, email: user.email, phone: user.phone, role: user.role } });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+
+};
+
+exports.demoteToStudent = async (req, res) => {
+    try {
+        const { userId } = req.query;
+        console.log("Demote request for userId:", userId);
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ message: "User not found" });
+        user.role = "student";
+        await user.save();
+        res.json({ message: "User demoted to student", user: { id: user._id, email: user.email, phone: user.phone, role: user.role } });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
 };
