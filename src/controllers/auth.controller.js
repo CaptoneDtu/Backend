@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const User = require("../models/User.model");
-const Session = require("../models/Session,model");
+const Session = require("../models/Session.model");
 const { signAccessToken, signRefreshToken, verifyRefreshToken } = require("../utils/jwt");
 
 const hashToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
@@ -74,7 +74,6 @@ exports.refresh = async (req, res) => {
 
         const decoded = verifyRefreshToken(refresh_token);
         const tokenHash = hashToken(refresh_token);
-
         const session = await Session.findOne({
             user_id: decoded.id,
             refresh_token_hash: tokenHash,
@@ -87,7 +86,7 @@ exports.refresh = async (req, res) => {
         session.is_revoked = true;
         await session.save();
 
-        const payload = { id: decoded.id, email: decoded.email, phone: decoded.phone, roles: decoded.roles };
+        const payload = { id: decoded.id, email: decoded.email, phone: decoded.phone, role: decoded.role };
         const newAccess = signAccessToken(payload);
         const newRefresh = signRefreshToken({ sid: crypto.randomUUID(), ...payload });
         const { exp } = verifyRefreshToken(newRefresh);
