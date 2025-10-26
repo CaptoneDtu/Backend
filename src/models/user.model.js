@@ -42,7 +42,7 @@ const userSchema = new Schema(
     },
     role: {
       type: String,
-      // enum: ['student', 'teacher', 'admin'],
+      enum: ['student', 'teacher', 'admin'],
       default: 'student'
       
     },
@@ -50,7 +50,6 @@ const userSchema = new Schema(
       type: String,
       default: ''
     },
-
   },
   {
     timestamps: true,
