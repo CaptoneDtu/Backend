@@ -7,8 +7,6 @@ const { signAccessToken, signRefreshToken, verifyRefreshToken } = require("../ut
 const hashToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
 
 
-
-
 exports.register = async (req, res) => {
     try {
         const { email, phone, password, name } = req.body;

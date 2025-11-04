@@ -1,17 +1,12 @@
-
-
 const router = require('express').Router();
-const GrammarController = require('../controllers/grammar.controller');
+const grammarController = require('../controllers/grammar.controller');
 const auth = require('../middleware/auth.middleware');
-const { createGrammarZ , updateGrammarZ} = require('../validators/grammar.validator');
-const { validateBody } = require('../middleware/validateBody');
+const { createGrammarSchema, updateGrammarSchema } = require('../validators/grammar.validator');
+const { validateBody } = require('../middleware/validate');
 
-
-router.post("/create", auth(['teacher']), validateBody(createGrammarZ), GrammarController.createGrammar);
-router.patch("/update/:grammarId", auth(['teacher']), validateBody(updateGrammarZ), GrammarController.updateGrammar);
-router.delete("/delete/:grammarId", auth(['teacher']), GrammarController.deleteGrammar);
-
-
-
+router.post('/create', auth(['teacher']), validateBody(createGrammarSchema), grammarController.createGrammar);
+router.get('/my-grammars', auth(['teacher']), grammarController.getMyGrammars);
+router.put('/update/:grammarId', auth(['teacher']), validateBody(updateGrammarSchema), grammarController.updateGrammar);
+router.delete('/delete/:grammarId', auth(['teacher']), grammarController.deleteGrammar);
 
 module.exports = router;

@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 const { Schema, model, Types } = mongoose;
 
@@ -7,7 +6,6 @@ const DeckSchema = new Schema({
     title : { type: String, required: true, trim: true, maxLength: 200 },
     description: { type: String, default: '' },
     tags : { type: [String], default: [] },
-    type: { type: String, enum: ['grammar', 'vocabulary'], default: 'personal', index: true },
 
     stat : {
         flashCardCount: { type: Number, default: 0 },

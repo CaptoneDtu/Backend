@@ -28,9 +28,21 @@ const kickStudentFromCourseSchema = z.object({
     studentEmail: z.string().email("Invalid email format"),
 });
 
+
+const getCoursesForAdminSchema = z.object({
+    title: z.string().min(1).max(200).optional(),
+    page: z.string().transform((val) => parseInt(val)).optional().default("1"),
+    limit: z.string().transform((val) => parseInt(val)).optional().default("10"),
+    status: z.enum(['draft','active','archived']).optional(),
+    targetLevel: z.enum(['HSK1','HSK2','HSK3','HSK4','HSK5','HSK6','Mixed']).optional(),
+});
+
+
+
 module.exports = {
     createCourseSchema,
     updateCourseSchema,
     addStudentToCourseSchema,
-    kickStudentFromCourseSchema
+    kickStudentFromCourseSchema,
+    getCoursesForAdminSchema
 };

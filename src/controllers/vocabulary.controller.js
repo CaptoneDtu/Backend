@@ -1,14 +1,14 @@
-const Grammar = require('../models/Grammar.model');
+const Vocabulary = require('../models/Vocabulary.model');
 const Course = require('../models/Course.model');
 const Lesson = require('../models/Lesson.model');
 const ApiRes = require('../res/apiRes');
 const asyncHandler = require('../middleware/asyncHandler');
-const { NotFoundError, ForbiddenError } = require('../res/AppError');
-const { createGrammarSchema, updateGrammarSchema } = require('../validators/grammar.validator');
+const { NotFoundError } = require('../res/AppError');
+const { createVocabularySchema, updateVocabularySchema } = require('../validators/vocabulary.validator');
 
-exports.createGrammar = asyncHandler(async (req, res) => {
-    const validatedData = createGrammarSchema.parse(req.body);
-    const { title, structure, explanation, examples, note, level, courseId, lessonId } = validatedData;
+exports.createVocabulary = asyncHandler(async (req, res) => {
+    const validatedData = createVocabularySchema.parse(req.body);
+    const { chinese, pinyin, vietnamese, audioUrl, example, note, level, wordType, courseId, lessonId } = validatedData;
     
     if (courseId) {
         const course = await Course.findOne({ _id: courseId, assignedTeacher: req.user.id });
@@ -24,23 +24,25 @@ exports.createGrammar = asyncHandler(async (req, res) => {
         }
     }
     
-    const newGrammar = new Grammar({ 
-        title, 
-        structure, 
-        explanation,
-        examples, 
+    const newVocabulary = new Vocabulary({ 
+        chinese, 
+        pinyin, 
+        vietnamese, 
+        audioUrl,
+        example,
         note,
         level,
+        wordType,
         course: courseId,
         lesson: lessonId,
         createdBy: req.user.id 
     });
-    await newGrammar.save();
+    await newVocabulary.save();
     
-    return ApiRes.created(res, "Grammar created successfully", newGrammar);
+    return ApiRes.created(res, "Vocabulary created successfully", newVocabulary);
 });
 
-exports.getMyGrammars = asyncHandler(async (req, res) => {
+exports.getMyVocabularies = asyncHandler(async (req, res) => {
     const { level, wordType, page = 1, limit = 20 } = req.query;
     const filter = { createdBy: req.user.id };
     
@@ -48,16 +50,16 @@ exports.getMyGrammars = asyncHandler(async (req, res) => {
     if (wordType) filter.wordType = wordType;
     
     const skip = (page - 1) * limit;
-    const grammars = await Grammar.find(filter)
+    const vocabularies = await Vocabulary.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .populate('course', 'title')
         .populate('lesson', 'title');
     
-    const total = await Grammar.countDocuments(filter);
+    const total = await Vocabulary.countDocuments(filter);
     
-    return ApiRes.successWithMeta(res, "Grammars retrieved successfully", grammars, {
+    return ApiRes.successWithMeta(res, "Vocabularies retrieved successfully", vocabularies, {
         currentPage: parseInt(page),
         totalPages: Math.ceil(total / limit),
         totalItems: total,
@@ -65,13 +67,13 @@ exports.getMyGrammars = asyncHandler(async (req, res) => {
     });
 });
 
-exports.updateGrammar = asyncHandler(async (req, res) => {
-    const { grammarId } = req.params;
-    const validatedData = updateGrammarSchema.parse(req.body);
+exports.updateVocabulary = asyncHandler(async (req, res) => {
+    const { vocabularyId } = req.params;
+    const validatedData = updateVocabularySchema.parse(req.body);
     
-    const grammar = await Grammar.findOne({ _id: grammarId, createdBy: req.user.id });
-    if (!grammar) {
-        throw new NotFoundError('Grammar not found or you do not have permission');
+    const vocabulary = await Vocabulary.findOne({ _id: vocabularyId, createdBy: req.user.id });
+    if (!vocabulary) {
+        throw new NotFoundError('Vocabulary not found or you do not have permission');
     }
     
     if (validatedData.courseId) {
@@ -92,19 +94,19 @@ exports.updateGrammar = asyncHandler(async (req, res) => {
         delete validatedData.lessonId;
     }
     
-    Object.assign(grammar, validatedData);
-    await grammar.save();
+    Object.assign(vocabulary, validatedData);
+    await vocabulary.save();
     
-    return ApiRes.updated(res, "Grammar updated successfully", grammar);
+    return ApiRes.updated(res, "Vocabulary updated successfully", vocabulary);
 });
 
-exports.deleteGrammar = asyncHandler(async (req, res) => {
-    const { grammarId } = req.params;
+exports.deleteVocabulary = asyncHandler(async (req, res) => {
+    const { vocabularyId } = req.params;
     
-    const grammar = await Grammar.findOneAndDelete({ _id: grammarId, createdBy: req.user.id });
-    if (!grammar) {
-        throw new NotFoundError('Grammar not found or you do not have permission');
+    const vocabulary = await Vocabulary.findOneAndDelete({ _id: vocabularyId, createdBy: req.user.id });
+    if (!vocabulary) {
+        throw new NotFoundError('Vocabulary not found or you do not have permission');
     }
     
-    return ApiRes.deleted(res, "Grammar deleted successfully");
+    return ApiRes.deleted(res, "Vocabulary deleted successfully");
 });

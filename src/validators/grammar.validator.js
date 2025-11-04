@@ -1,36 +1,36 @@
 const { z } = require('zod');
 
-const exampleZ = z.object({
-  zh: z.string().trim().max(500).optional(),
-  pinyin: z.string().trim().max(500).optional(),
-  vi: z.string().trim().max(500).optional(),
-
-  sentence: z.string().trim().max(500).optional(),
-  translation: z.string().trim().max(500).optional(),
-}).refine(obj => (obj.zh || obj.sentence), {
-  message: 'Cần ít nhất zh hoặc sentence cho ví dụ.'
+const exampleSchema = z.object({
+    chinese: z.string().max(500).optional(),
+    pinyin: z.string().max(600).optional(),
+    vietnamese: z.string().max(500).optional()
 });
 
-const base = {
-  title: z.string().trim().max(200),
-  structure: z.string().trim().max(1000),
-  description: z.string().trim().max(2000).optional(),
-  examples: z.array(exampleZ).max(50).optional(),
-  level: z.enum(['HSK1','HSK2','HSK3','HSK4','HSK5','HSK6']).default('HSK1'),
-  tags: z.array(z.string().trim().max(40)).optional(),
+const createGrammarSchema = z.object({
+    title: z.string().min(1, 'Title is required').max(200),
+    structure: z.string().min(1, 'Structure is required').max(1000),
+    explanation: z.string().max(2000).optional(),
+    examples: z.array(exampleSchema).optional(),
+    note: z.string().max(1000).optional(),
+    level: z.enum(['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'HSK6']).optional(),
+    courseId: z.string().optional(),
+    lessonId: z.string().optional()
+});
+
+const updateGrammarSchema = z.object({
+    title: z.string().min(1).max(200).optional(),
+    structure: z.string().min(1).max(1000).optional(),
+    explanation: z.string().max(2000).optional(),
+    examples: z.array(exampleSchema).optional(),
+    note: z.string().max(1000).optional(),
+    level: z.enum(['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'HSK6']).optional(),
+    courseId: z.string().optional(),
+    lessonId: z.string().optional()
+});
+
+module.exports = {
+    createGrammarSchema,
+    updateGrammarSchema
 };
 
-const createGrammarZ = z.object({
-  ...base,
-});
-
-const updateGrammarZ = z.object({
-  title: base.title.optional(),
-  structure: base.structure.optional(),
-  description: base.description,
-  examples: base.examples,
-  level: base.level.optional(),
-  tags: base.tags,
-}).refine(obj => Object.keys(obj).length > 0, { message: 'Không có trường nào để cập nhật.' });
-
-module.exports = { createGrammarZ, updateGrammarZ };
+module.exports = { createGrammarSchema, updateGrammarSchema };

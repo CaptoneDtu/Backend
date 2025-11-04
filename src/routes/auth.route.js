@@ -1,8 +1,6 @@
 const express = require("express");
 const auth = require("../middleware/auth.middleware");
-const {
-  register,
-  login,
+const {  login,
   refresh,
   logout,
   getMe,
@@ -13,13 +11,11 @@ const {
 
 const router = express.Router();
 
-router.post("/register", register);
 router.post("/login", login);
-router.post("/refresh", refresh);
 router.post("/logout", logout);
+router.post("/refresh", refresh);
 router.get("/me", auth(), getMe);
 router.get("/admin", auth(["admin"]), adminOnly);
-router.get("/promoteToTeacher", auth(["admin"]), promoteToTeacher);
-router.get("/demoteToStudent", auth(["admin"]), demoteToStudent);
+
 
 module.exports = router;

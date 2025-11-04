@@ -2,10 +2,10 @@
 
 const express = require('express');
 const auth = require('../middleware/auth.middleware');
-const { validateBody } = require('../middleware/validateBody');
+const { validateBody } = require('../middleware/validate');
 
 const lessonController = require('../controllers/lesson.controller');
-const { createLessonSchema, deleteLessonSchema } = require('../vadilators/lesson.validator');
+const { createLessonSchema, deleteLessonSchema } = require("../validators/lesson.validator");
 const router = express.Router();
 
 router.post('/create-lesson', auth(["teacher"]), validateBody(createLessonSchema), lessonController.createLesson);

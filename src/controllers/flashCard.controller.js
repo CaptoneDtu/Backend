@@ -1,129 +1,166 @@
-
-
 const Deck = require('../models/Deck.model');  
-const FlashCard = require('../models/FlashCard.model'); 
+const FlashCard = require('../models/FlashCard.model');
+const ApiRes = require('../res/apiRes');
+const asyncHandler = require('../middleware/asyncHandler');
+const { NotFoundError, ForbiddenError } = require('../res/AppError');
+const { 
+    createDeckSchema, 
+    updateDeckSchema, 
+    createFlashCardSchema, 
+    updateFlashCardSchema 
+} = require('../validators/flashcard.validator');
 
-exports.createDeck = async (req, res) => {
-    try {
-        const { title, description } = req.body;
-        const newDeck = new Deck({ title, description, createdBy: req.user._id });
-        await newDeck.save();
-        res.status(201).json(newDeck);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Internal server error' });
+exports.createDeck = asyncHandler(async (req, res) => {
+    const validatedData = createDeckSchema.parse(req.body);
+    const { title, description, tags, type } = validatedData;
+    
+    const newDeck = new Deck({ 
+        title, 
+        description, 
+        tags,
+        type,
+        createdBy: req.user.id 
+    });
+    await newDeck.save();
+    return ApiRes.created(res, "Deck created successfully", newDeck);
+});
+
+exports.updateDeck = asyncHandler(async (req, res) => {
+    const { deckId } = req.params;
+    const validatedData = updateDeckSchema.parse(req.body);
+    
+    const deck = await Deck.findOneAndUpdate(
+        { _id: deckId, createdBy: req.user.id },
+        { ...validatedData, updatedAt: Date.now() },
+        { new: true, runValidators: true }
+    );
+    
+    if (!deck) {
+        throw new NotFoundError('Deck not found or you do not have permission');
     }
-};
+    
+    return ApiRes.updated(res, "Deck updated successfully", deck);
+});
 
-exports.updateDeck = async (req, res) => {
-    try {
-        const { deckId } = req.params;
-        const { title, description } = req.body;
-        const deck = await Deck.findOneAndUpdate(
-            { _id: deckId, createdBy: req.user._id },
-            { title, description, updatedAt: Date.now() },
-            { new: true }
-        );
-        if (!deck) {
-            return res.status(404).json({ message: 'Deck not found' });
+exports.deleteDeck = asyncHandler(async (req, res) => {
+    const { deckId } = req.params;
+    
+    const deck = await Deck.findOneAndDelete({ _id: deckId, createdBy: req.user.id });
+    if (!deck) {
+        throw new NotFoundError('Deck not found or you do not have permission');
+    }
+    
+    await FlashCard.deleteMany({ deck: deckId });
+    
+    return ApiRes.deleted(res, "Deck and all cards deleted successfully", { deletedDeckId: deckId });
+});
+
+exports.getUserDecks = asyncHandler(async (req, res) => {
+    const decks = await Deck.find({ createdBy: req.user.id }).sort({ createdAt: -1 });
+    return ApiRes.success(res, "Decks retrieved successfully", {
+        decks,
+        total: decks.length
+    });
+});
+
+
+exports.getDecks = asyncHandler(async (req, res) => {
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const decks = await Deck.find().populate('createdBy', 'name email').sort({ createdAt: -1 }).skip(skip).limit(limit);
+    const total = await Deck.countDocuments();
+    return ApiRes.success(res, "Decks retrieved successfully", {
+        decks,
+        total,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit)
+    });
+});
+
+
+exports.createFlashCard = asyncHandler(async (req, res) => {
+    const validatedData = createFlashCardSchema.parse(req.body);
+    const { deckId, type, frontText, backText, vocabularyData, grammarData } = validatedData;
+    
+    const deck = await Deck.findOne({ _id: deckId, createdBy: req.user.id });
+    if (!deck) {
+        throw new NotFoundError('Deck not found or you do not have permission');
+    }
+    
+    const newCard = new FlashCard({ 
+        type,
+        frontText,
+        backText,
+        vocabularyData,
+        grammarData,
+        deck: deckId 
+    });
+    await newCard.save();
+
+    deck.stat.flashCardCount += 1;
+    await deck.save();
+
+    return ApiRes.created(res, "FlashCard created successfully", newCard);
+});
+
+exports.updateFlashCard = asyncHandler(async (req, res) => {
+    const { flashCardId } = req.params;
+    const validatedData = updateFlashCardSchema.parse(req.body);
+    
+    const card = await FlashCard.findById(flashCardId).populate('deck');
+    if (!card) {
+        throw new NotFoundError('FlashCard not found');
+    }
+    
+    if (card.deck.createdBy.toString() !== req.user.id) {
+        throw new ForbiddenError('You do not have permission to update this card');
+    }
+    
+    Object.assign(card, validatedData);
+    await card.save();
+    
+    return ApiRes.updated(res, "FlashCard updated successfully", card);
+});
+
+exports.deleteFlashCard = asyncHandler(async (req, res) => {
+    const { flashCardId } = req.params;
+    
+    const card = await FlashCard.findById(flashCardId).populate('deck');
+    if (!card) {
+        throw new NotFoundError('FlashCard not found');
+    }
+    
+    if (card.deck.createdBy.toString() !== req.user.id) {
+        throw new ForbiddenError('You do not have permission to delete this card');
+    }
+    
+    const deckId = card.deck._id;
+    await card.deleteOne();
+    
+    await Deck.findByIdAndUpdate(deckId, { $inc: { 'stat.flashCardCount': -1 } });
+    
+    return ApiRes.deleted(res, "FlashCard deleted successfully", { deletedCardId: flashCardId });
+});
+
+exports.getFlashCardsByDeck = asyncHandler(async (req, res) => {
+    const { deckId } = req.params;
+    
+    const deck = await Deck.findOne({ _id: deckId, createdBy: req.user.id });
+    if (!deck) {
+        throw new NotFoundError('Deck not found or you do not have permission');
+    }
+    
+    const cards = await FlashCard.find({ deck: deckId }).sort({ createdAt: -1 });
+    
+    return ApiRes.success(res, "FlashCards retrieved successfully", {
+        cards,
+        total: cards.length,
+        deck: {
+            id: deck._id,
+            title: deck.title,
+            description: deck.description
         }
-        res.json(deck);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Internal server error' });
-    }
-};
-exports.deleteDeck = async (req, res) => {
-    try {
-        const { deckId } = req.params;
-        const deck = await Deck.findOneAndDelete({ _id: deckId, createdBy: req.user._id });
-        if (!deck) {
-            return res.status(404).json({ message: 'Deck not found' });
-        }
-        res.json({ message: 'Deck deleted successfully' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Internal server error' });
-    }
-};
-
-exports.getUserDecks = async (req, res) => {
-    // Api dành cho teacher lấy flashcard decks của chính họ
-    try {
-        const decks = await Deck.find({ createdBy: req.user._id }).sort({ createdAt: -1 });
-        res.json(decks);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Internal server error' });
-    }
-};
-
-
-exports.createCard = async (req, res) => {
-    try {
-        const { deckId } = req.params;
-        const { front, back } = req.body;
-        const deck = await Deck.findOne({ _id: deckId, createdBy: req.user._id });
-        if (!deck) {
-            return res.status(404).json({ message: 'Deck not found' });
-        }
-        const newCard = new FlashCard({ front, back, deck: deckId });
-        await newCard.save();
-
-        deck.stat.flashCardCount += 1;
-        await deck.save();
-
-        res.status(201).json(newCard);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Internal server error' });
-    }
-};
-
-exports.getDeckCards = async (req, res) => {
-    try {
-        const { deckId } = req.params;
-        const deck = await Deck.findOne({ _id: deckId, createdBy: req.user._id });
-        if (!deck) {
-            return res.status(404).json({ message: 'Deck not found' });
-        }
-        const cards = await FlashCard.find({ deck: deckId });
-        res.json(cards);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Internal server error' });
-    }
-};
-
-exports.deleteCard = async (req, res) => {
-    try {
-        const { cardId } = req.params;
-        const card = await FlashCard.findOneAndDelete({ _id: cardId });
-        if (!card) {
-            return res.status(404).json({ message: 'Card not found' });
-        }
-        res.json({ message: 'Card deleted successfully' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Internal server error' });
-    }
-};
-exports.updateCard = async (req, res) => {
-    try {
-        const { cardId } = req.params;
-        const { front, back } = req.body;
-        const card = await FlashCard.findOneAndUpdate(
-            { _id: cardId },
-            { front, back },
-            { new: true }
-        );
-        if (!card) {
-            return res.status(404).json({ message: 'Card not found' });
-        }
-        res.json(card);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Internal server error' });
-    }
-};
+    });
+});
 
