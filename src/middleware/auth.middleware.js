@@ -1,36 +1,68 @@
 const jwt = require("jsonwebtoken");
 const ApiRes = require("../res/apiRes");
-const { UnauthorizedError, ForbiddenError } = require("../res/AppError");
+const User = require("../models/User.model");
 
+/**
+ * Auth middleware
+ * - Verify JWT
+ * - Load user from DB
+ * - Check status (block only)
+ * - Check role
+ */
 const auth = (roles = []) => {
-    return (req, res, next) => {
-        try {
-            const token = req.headers.authorization?.split(" ")[1];
-            if (!token) {
-                throw new UnauthorizedError("No token provided");
-            }
+  return async (req, res, next) => {
+    try {
+      const authHeader = req.headers.authorization;
 
-            const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-            req.user = decoded;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return ApiRes.unauthorized(res, "Không có token được cung cấp");
+      }
 
-            if (roles.length && !roles.includes(decoded.role)) {
-                throw new ForbiddenError("Forbidden: insufficient rights");
-            }
-            
-            next();
-        } catch (err) {
-            if (err instanceof jwt.JsonWebTokenError) {
-                return ApiRes.unauthorized(res, "Invalid token");
-            }
-            if (err instanceof jwt.TokenExpiredError) {
-                return ApiRes.unauthorized(res, "Token expired");
-            }
-            if (err.statusCode) {
-                return ApiRes.error(res, err.message, err.statusCode);
-            }
-            return ApiRes.unauthorized(res, "Invalid/expired access token");
-        }
-    };
+      const token = authHeader.split(" ")[1];
+
+      // 1️⃣ Verify token
+      const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+
+      // 2️⃣ Load user từ DB
+      const user = await User.findById(decoded.id).select(
+        "_id role status email"
+      );
+
+      if (!user) {
+        return ApiRes.unauthorized(res, "Người dùng không tồn tại");
+      }
+
+      // 3️⃣ Chỉ CHẶN user bị BLOCKED
+      if (user.status === "blocked") {
+        return ApiRes.unauthorized(res, "Tài khoản đã bị khóa");
+      }
+
+      // 4️⃣ Check role nếu có
+      if (roles.length && !roles.includes(user.role)) {
+        return ApiRes.forbidden(res, "Không đủ quyền truy cập");
+      }
+
+      // 5️⃣ Gán user cho request
+      req.user = {
+        id: user._id.toString(),
+        role: user.role,
+        status: user.status,
+        email: user.email,
+      };
+
+      next();
+    } catch (err) {
+      if (err.name === "TokenExpiredError") {
+        return ApiRes.unauthorized(res, "Token đã hết hạn");
+      }
+      if (err.name === "JsonWebTokenError") {
+        return ApiRes.unauthorized(res, "Token không hợp lệ");
+      }
+
+      console.error("Auth middleware error:", err);
+      return ApiRes.unauthorized(res, "Xác thực thất bại");
+    }
+  };
 };
 
 module.exports = auth;

@@ -1,27 +1,103 @@
-
-const express = require('express');
-const auth = require('../middleware/auth.middleware');
-const { validateBody, validateQuery } = require('../middleware/validate');
-const courseController = require('../controllers/course.controller');
-const { createCourseSchema, addStudentToCourseSchema, kickStudentFromCourseSchema, getCoursesForAdminSchema } = require('../validators/courses.validator');
+const express = require("express");
+const auth = require("../middleware/auth.middleware");
+const { validateBody, validateQuery } = require("../middleware/validate");
+const courseController = require("../controllers/course.controller");
+const {
+  createCourseSchema,
+  updateCourseSchema,
+  addStudentToCourseSchema,
+  kickStudentFromCourseSchema,
+  getCoursesForAdminSchema,
+} = require("../validators/courses.validator");
 
 const router = express.Router();
 
+router.post(
+  "/create",
+  auth(["admin"]),
+  validateBody(createCourseSchema),
+  courseController.createCourseForTeacher
+);
+router.put(
+  "/update/:courseId",
+  auth(["admin", "teacher"]),
+  validateBody(updateCourseSchema),
+  courseController.updateCourse
+);
 
+router.get(
+  "/get-courses-for-admin",
+  auth(["admin"]),
+  validateQuery(getCoursesForAdminSchema),
+  courseController.getCoursesForAdmin
+);
+router.get(
+  "/get-courses-for-teacher",
+  auth(["teacher"]),
+  validateQuery(getCoursesForAdminSchema),
+  courseController.getCoursesForTeacher
+);
+router.get(
+  "/get-courses-for-student",
+  auth(["student"]),
+  validateQuery(getCoursesForAdminSchema),
+  courseController.getCoursesForStudent
+);
 
-router.post('/create', auth(["admin"]), validateBody(createCourseSchema), courseController.createCourseForTeacher);
+router.get(
+  "/get-course-users/:courseId",
+  auth(["admin", "teacher"]),
+  courseController.getCourseUsers
+);
+router.post(
+  "/add-student",
+  auth(["admin"]),
+  validateBody(addStudentToCourseSchema),
+  courseController.addStudentToCourseByEmail
+);
+router.post(
+  "/kick-student",
+  auth(["admin"]),
+  validateBody(kickStudentFromCourseSchema),
+  courseController.kickStudentFromCourseByEmail
+);
 
-router.get('/get-courses-for-admin', auth(["admin"]), validateQuery(getCoursesForAdminSchema), courseController.getCoursesForAdmin);
-router.get('/get-courses-for-teacher', auth(["teacher"]), validateQuery(getCoursesForAdminSchema), courseController.getCoursesForTeacher);
-router.get('/get-courses-for-student', auth(["student"]), validateQuery(getCoursesForAdminSchema), courseController.getCoursesForStudent);
+router.get(
+  "/course-detail/:courseId",
+  auth(["admin", "teacher", "student"]),
+  courseController.getCourseDetails
+);
+router.patch(
+  "/publish/:courseId",
+  auth(["admin"]),
+  courseController.publishCourse
+);
+router.patch(
+  "/close/:courseId",
+  auth(["admin", "teacher"]), // tương tự
+  courseController.closeCourse
+);
+// Admin xem khóa học + danh sách học viên theo từng khóa
+router.get(
+  "/get-courses-for-teacher-with-students",
+  auth(["admin"]),
+  courseController.getCoursesForTeacherWithStudents
+);
 
-router.get('/get-course-users/:courseId', auth(["admin", "teacher"]), courseController.getCourseUsers);
-router.post('/add-student', auth(["admin"]), validateBody(addStudentToCourseSchema), courseController.addStudentToCourseByEmail);
-router.post('/kick-student', auth(["admin"]), validateBody(kickStudentFromCourseSchema), courseController.kickStudentFromCourseByEmail);
-
-router.get("/course-detail/:courseId", auth(["admin", "teacher", "student"]), courseController.getCourseDetails);
-
-
-
-
+// Admin xem khóa học của student + thông tin teacher + progress
+router.get(
+  "/get-courses-for-student-detail",
+  auth(["admin"]),
+  courseController.getCoursesForStudentDetail
+);
+router.get(
+  "/get-courses-by-teacher/:teacherId",
+  auth(["admin"]),
+  courseController.getCoursesByTeacherId
+);
+router.delete(
+  "/delete/:courseId",
+  auth(["admin"]),
+  courseController.deleteCourse
+);
 module.exports = router;

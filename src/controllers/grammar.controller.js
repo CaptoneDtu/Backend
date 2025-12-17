@@ -98,6 +98,22 @@ exports.updateGrammar = asyncHandler(async (req, res) => {
     return ApiRes.updated(res, "Grammar updated successfully", grammar);
 });
 
+exports.getGrammarById = asyncHandler(async (req, res) => {
+    const { grammarId } = req.params;
+    
+    const grammar = await Grammar.findById(grammarId)
+        .populate('course', 'title targetLevel')
+        .populate('lesson', 'title order')
+        .populate('createdBy', 'fullName email')
+        .lean();
+    
+    if (!grammar) {
+        throw new NotFoundError('Grammar not found');
+    }
+    
+    return ApiRes.success(res, 'Grammar retrieved successfully', grammar);
+});
+
 exports.deleteGrammar = asyncHandler(async (req, res) => {
     const { grammarId } = req.params;
     
