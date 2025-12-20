@@ -107,7 +107,10 @@ class NotificationController {
   getMyNotifications = asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
-    const { page = 1, limit = 20, unreadOnly = false } = req.query;
+    const { page = 1, limit = 20, unreadOnly } = req.query;
+    
+    // Parse unreadOnly as boolean (query params are always strings)
+    const isUnreadOnly = unreadOnly === 'true' || unreadOnly === true;
 
     const skip = (page - 1) * limit;
 
@@ -138,16 +141,64 @@ class NotificationController {
       }
     }
 
-    // Lấy danh sách thông báo
-    const notifications = await Notification.find(notificationQuery)
-      .sort({ priority: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .lean();
+    // Lấy danh sách notification IDs đã bị user delete (để loại trừ)
+    const deletedNotificationIds = await NotificationRecipient.find({
+      user: userId,
+      isDeleted: true,
+    }).distinct("notification");
+
+    // Thêm điều kiện loại trừ notifications đã delete
+    if (deletedNotificationIds.length > 0) {
+      notificationQuery._id = notificationQuery._id 
+        ? { ...notificationQuery._id, $nin: deletedNotificationIds }
+        : { $nin: deletedNotificationIds };
+    }
+
+    // Nếu chỉ lấy unread, cần filter ở database level
+    let notifications;
+    let total;
+    
+    if (isUnreadOnly) {
+      // Lấy danh sách notification IDs đã đọc
+      const readNotificationIds = await NotificationRecipient.find({
+        user: userId,
+        isRead: true,
+        isDeleted: false,
+      }).distinct("notification");
+
+      // Thêm điều kiện loại trừ các notification đã đọc
+      if (notificationQuery._id) {
+        // Merge với điều kiện _id hiện có
+        const existingNin = notificationQuery._id.$nin || [];
+        notificationQuery._id.$nin = [...existingNin, ...readNotificationIds];
+      } else {
+        notificationQuery._id = { $nin: readNotificationIds };
+      }
+
+      // Lấy danh sách thông báo chưa đọc
+      [notifications, total] = await Promise.all([
+        Notification.find(notificationQuery)
+          .sort({ priority: -1, createdAt: -1 })
+          .skip(skip)
+          .limit(parseInt(limit))
+          .lean(),
+        Notification.countDocuments(notificationQuery),
+      ]);
+    } else {
+      // Lấy tất cả thông báo
+      [notifications, total] = await Promise.all([
+        Notification.find(notificationQuery)
+          .sort({ priority: -1, createdAt: -1 })
+          .skip(skip)
+          .limit(parseInt(limit))
+          .lean(),
+        Notification.countDocuments(notificationQuery),
+      ]);
+    }
 
     const notificationIds = notifications.map((n) => n._id);
 
-    // Lấy trạng thái đọc của user (chỉ query những thông báo đã đọc)
+    // Lấy trạng thái đọc của user
     const readStatuses = await NotificationRecipient.find({
       user: userId,
       notification: { $in: notificationIds },
@@ -157,7 +208,7 @@ class NotificationController {
     const readStatusMap = new Map(readStatuses.map((r) => [r.notification.toString(), r]));
 
     // Merge thông tin đọc vào thông báo
-    const notificationsWithStatus = notifications.map((notification) => {
+    const finalNotifications = notifications.map((notification) => {
       const readStatus = readStatusMap.get(notification._id.toString());
       return {
         ...notification,
@@ -167,20 +218,13 @@ class NotificationController {
       };
     });
 
-    // Filter unread nếu cần
-    const finalNotifications = unreadOnly === "true" 
-      ? notificationsWithStatus.filter((n) => !n.isRead)
-      : notificationsWithStatus;
-
-    const total = await Notification.countDocuments(notificationQuery);
-
     // Đếm số thông báo chưa đọc
     const unreadCount = await this.countUnreadNotifications(userId, userRole);
 
     return apiRes.successWithMeta(res, "Lấy thông báo thành công", finalNotifications, {
       unreadCount,
       pagination: {
-        total: finalNotifications.length,
+        total,
         page: parseInt(page),
         limit: parseInt(limit),
         pages: Math.ceil(total / limit),
@@ -217,14 +261,26 @@ class NotificationController {
     }
 
     const allNotificationIds = await Notification.find(notificationQuery).distinct("_id");
+    
+    // Loại trừ notifications đã bị user delete
+    const deletedNotificationIds = await NotificationRecipient.find({
+      user: userId,
+      isDeleted: true,
+    }).distinct("notification");
+    
+    const validNotificationIds = allNotificationIds.filter(
+      (id) => !deletedNotificationIds.some((deletedId) => deletedId.toString() === id.toString())
+    );
+    
+    // Đếm số notification đã đọc (trong số các notification hợp lệ)
     const readNotificationIds = await NotificationRecipient.find({
       user: userId,
-      notification: { $in: allNotificationIds },
+      notification: { $in: validNotificationIds },
       isRead: true,
       isDeleted: false,
     }).distinct("notification");
 
-    return allNotificationIds.length - readNotificationIds.length;
+    return validNotificationIds.length - readNotificationIds.length;
   };
 
   /**
@@ -259,15 +315,34 @@ class NotificationController {
       await Notification.findByIdAndUpdate(id, {
         $inc: { "stats.readCount": 1 },
       });
-    } else if (!recipient.isRead) {
-      recipient.isRead = true;
-      recipient.readAt = new Date();
-      await recipient.save();
+    } else {
+      let needsUpdate = false;
+      let shouldIncrementStats = false;
+
+      if (!recipient.isRead) {
+        recipient.isRead = true;
+        recipient.readAt = new Date();
+        needsUpdate = true;
+        shouldIncrementStats = true;
+      }
+
+      // Nếu đã bị xóa, un-delete khi mark as read
+      if (recipient.isDeleted) {
+        recipient.isDeleted = false;
+        recipient.deletedAt = null;
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        await recipient.save();
+      }
 
       // Cập nhật stats
-      await Notification.findByIdAndUpdate(id, {
-        $inc: { "stats.readCount": 1 },
-      });
+      if (shouldIncrementStats) {
+        await Notification.findByIdAndUpdate(id, {
+          $inc: { "stats.readCount": 1 },
+        });
+      }
     }
 
     return apiRes.success(res, "Đã đánh dấu thông báo đã đọc", recipient);
